@@ -1,16 +1,39 @@
 # Speakwell
 
-A standalone, responsive public-speaking practice app. No install, API key, or paid service is required. Built with browser JavaScript, CSS, MediaRecorder and Web Speech recognition.
+Speakwell is a responsive public-speaking practice app with random prompts, timed recording, editable browser transcription, local voice analysis, and AI content feedback.
 
 ## Run locally
 
-From this directory:
+Requirements: Node.js 20 or newer and a modern desktop browser.
 
 ```sh
-python3 -m http.server 4173 --directory dist
+cd ~/Downloads/Speakwell
+cp .env.example .env
 ```
 
 Open http://localhost:4173. Microphone recording requires localhost or HTTPS. Allow microphone access when starting a round. Browser speech recognition availability varies; try current desktop Chrome or Edge. If unavailable, recording and playback still work, and you can enter a transcript manually.
+
+## Publish on GitHub Pages
+
+This repository is a static site, so it does not need a build service or API key.
+
+1. Create a new empty repository on GitHub.
+2. From this project folder, run:
+
+   ```sh
+   git init
+   git add .
+   git commit -m "Initial Speakwell app"
+   git branch -M main
+   git remote add origin https://github.com/YOUR-USERNAME/YOUR-REPOSITORY.git
+   git push -u origin main
+   ```
+
+3. In the GitHub repository, open **Settings → Pages**.
+4. Under **Build and deployment**, choose **GitHub Actions** as the source.
+5. Open the **Actions** tab and wait for the included “Deploy Speakwell to GitHub Pages” workflow to finish. The deployment summary will contain the public URL.
+
+The included workflow publishes the `dist` folder whenever `main` changes. GitHub Pages uses HTTPS, which is required for microphone recording outside localhost.
 
 ## Features
 
@@ -39,10 +62,14 @@ npm test
 npm run check
 ```
 
-Manual device check: allow the microphone; speak through a 30-second round; confirm auto-stop, replay, download, and recognized text. Try early finish and denied permissions. Microphone and recognition service behavior requires a real browser/device and cannot be established by unit tests.
-
-For production-grade filler and stutter analysis, replace the browser transcript path with a consent-based acoustic analysis pipeline and validate it against labeled speech samples. This app does not claim clinical or validated fluency analysis.
+The test suite covers contextual filler decisions, audio-score boundaries, monotone and rushing signals, and the structured OpenAI request with a mocked response. A real microphone/browser check and a real API-key check are still needed on the deployment target.
 
 ## Project layout
 
-`dist/index.html`: interface; `dist/style.css`: responsive styles; `dist/app.js`: topics and recording lifecycle; `dist/analysis.js`: scoring rules; `tests/`: meaningful scoring tests. Static hosting needs only `dist/` over HTTPS. No build step.
+- `dist/`: browser interface and generated analysis bundles
+- `src/analysis.js`: contextual transcript analysis
+- `src/audio-analysis.js`: microphone feature extraction and speaking score
+- `server/content-analysis.js`: OpenAI content rubric and structured request
+- `functions/api/analyze-content.js`: Cloudflare Pages Function
+- `server.mjs`: local static/API server
+- `tests/`: transcript, audio, and API-contract tests

@@ -1,1 +1,17 @@
-{"name":"speakwell","version":"1.0.0","private":true,"type":"module","scripts":{"start":"python3 -m http.server 4173 --directory dist","test":"node --test tests/*.test.js","check":"node --check dist/app.js && node --check dist/analysis.js"}}
+{
+  "name": "speakwell",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "start:static": "python3 -m http.server 4173 --directory dist",
+    "build": "esbuild src/analysis.js src/audio-analysis.js --bundle --format=esm --platform=browser --target=es2020 --outdir=dist",
+    "test": "npm run build && node --test tests/*.test.js",
+    "check": "node --check dist/app.js && node --check dist/analysis.js && node --check dist/audio-analysis.js && node --check server.mjs && node --check server/content-analysis.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

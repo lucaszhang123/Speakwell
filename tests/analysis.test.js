@@ -1,7 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {analyze} from '../dist/analysis.js';
-test('does not reward an empty or very short recording',()=>{assert.equal(analyze('',60).score,null);assert.equal(analyze('one two three',60).score,null);assert.equal(analyze('one '.repeat(20),2).score,null);});
-test('counts phrases and consecutive words without matching substrings',()=>{const r=analyze('Um I I like candy but unlike you know some people I prefer fruit',10);assert.equal(r.fillers,3);assert.equal(r.repeats,1);assert.equal(r.pace,84);});
-test('score stays bounded and responds to filler density',()=>{const clean='One clear idea can help your audience understand the point you want to make today';const a=analyze(clean,7);const b=analyze('um uh like I I '+clean,9);assert.ok(a.score>b.score);assert.ok(b.score>=0&&b.score<=100);});
-test('argument feedback has no numerical score',()=>{assert.equal(analyze('a clear argument with enough words to discuss a particular topic at some length today',10,false).score,null);});
+import {analyzeTranscript} from '../dist/analysis.js';
+
+test('requires enough recognized speech for a speaking score', () => {
+  assert.equal(analyzeTranscript('', 60).valid, false);
+  assert.equal(analyzeTranscript('one two three', 60).valid, false);
+  assert.equal(analyzeTranscript('one '.repeat(20), 2).valid, false);
+});
+
+test('counts vocalized fillers, contextual fillers, and repetitions separately', () => {
+  const result = analyzeTranscript('Um I I like candy but, like, some people prefer fruit every single day', 10);
+  assert.equal(result.vocalizedFillers, 1);
+  assert.equal(result.contextualFillers, 1);
+  assert.equal(result.repeats, 1);
+});
+
+test('distinguishes discourse like from a comparison', () => {
+  const result = analyzeTranscript("Like I'm not sure right now. But it's almost like I don't know what I'm talking about.", 12);
+  assert.equal(result.contextualFillers, 1);
+  assert.equal(result.fillerDetails[0].phrase, 'Like');
+});
+
+test('does not flag lexical uses of like', () => {
+  const result = analyzeTranscript('I like candy and it looks like rain, while things like umbrellas keep us dry outside today.', 10);
+  assert.equal(result.fillers, 0);
+});
+
+test('distinguishes literal and parenthetical multiword phrases', () => {
+  const result = analyzeTranscript('Do you know the answer? You know, I may need another moment. I mean what I say.', 12);
+  assert.equal(result.fillers, 1);
+  assert.equal(result.fillerDetails[0].phrase, 'You know');
+});
