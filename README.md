@@ -12,28 +12,6 @@ python3 -m http.server 4173 --directory dist
 
 Open http://localhost:4173. Microphone recording requires localhost or HTTPS. Allow microphone access when starting a round. Browser speech recognition availability varies; try current desktop Chrome or Edge. If unavailable, recording and playback still work, and you can enter a transcript manually.
 
-## Publish on GitHub Pages
-
-This repository is a static site, so it does not need a build service or API key.
-
-1. Create a new empty repository on GitHub.
-2. From this project folder, run:
-
-   ```sh
-   git init
-   git add .
-   git commit -m "Initial Speakwell app"
-   git branch -M main
-   git remote add origin https://github.com/YOUR-USERNAME/YOUR-REPOSITORY.git
-   git push -u origin main
-   ```
-
-3. In the GitHub repository, open **Settings → Pages**.
-4. Under **Build and deployment**, choose **GitHub Actions** as the source.
-5. Open the **Actions** tab and wait for the included “Deploy Speakwell to GitHub Pages” workflow to finish. The deployment summary will contain the public URL.
-
-The included workflow publishes the `dist` folder whenever `main` changes. GitHub Pages uses HTTPS, which is required for microphone recording outside localhost.
-
 ## Features
 
 - Random topics in everyday, research/discovery, and open-question argument modes
