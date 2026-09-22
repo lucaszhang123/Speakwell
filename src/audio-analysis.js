@@ -34,7 +34,6 @@ export function estimatePitch(samples, sampleRate) {
   }
   return bestCorrelation >= 0.65 && bestLag ? sampleRate / bestLag : null;
 }
-
 export function summarizeAudio({levels = [], pitches = [], totalFrames = 0, voicedFrames = 0} = {}) {
   const pitchSemitones = pitches.map((pitch) => 12 * Math.log2(pitch / 100));
   return {
@@ -54,7 +53,7 @@ export function scoreSpeaking(audio, transcript) {
   const variationScore = Math.round(clamp(35 + audio.pitchVariationSt * 22 + Math.min(audio.pitchRangeSt, 10) * 2.5));
   const pacePenalty = transcript.pace > 180 ? (transcript.pace - 180) * 1.5 : transcript.pace < 95 ? (95 - transcript.pace) * 0.8 : 0;
   const paceScore = Math.round(clamp(100 - pacePenalty));
-  const fillerRate = (transcript.vocalizedFillers * 1.25 + transcript.contextualFillers + transcript.repeats * 0.6) / Math.max(transcript.words, 1);
+  const fillerRate = (transcript.vocalizedFillers * 1.25 + transcript.contextualFillers + transcript.repeats * 0.8 + (transcript.incompletePhrases || 0) * 0.8) / Math.max(transcript.words, 1);
   const fillerScore = Math.round(clamp(100 - fillerRate * 500));
   const voicePresenceScore = Math.round(clamp(100 - Math.max(0, 0.35 - audio.voicedRatio) * 150 - Math.max(0, audio.voicedRatio - 0.9) * 80));
   const monotone = audio.pitchSamples >= 8 && (audio.pitchVariationSt < 1.4 || audio.pitchRangeSt < 3.5);

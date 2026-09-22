@@ -10,6 +10,10 @@ const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 const sendJson = (response, body, status = 200) => { response.writeHead(status, {'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store'}); response.end(JSON.stringify(body)); };
 
 createServer(async (request, response) => {
+  if (request.method === 'GET' && request.url === '/api/auth-config') {
+    sendJson(response, {url: process.env.SUPABASE_URL || '', publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || ''});
+    return;
+  }
   if (request.method === 'POST' && request.url === '/api/analyze-content') {
     try {
       let raw = '';

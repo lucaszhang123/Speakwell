@@ -7,7 +7,6 @@ test('requires enough recognized speech for a speaking score', () => {
   assert.equal(analyzeTranscript('one two three', 60).valid, false);
   assert.equal(analyzeTranscript('one '.repeat(20), 2).valid, false);
 });
-
 test('counts vocalized fillers, contextual fillers, and repetitions separately', () => {
   const result = analyzeTranscript('Um I I like candy but, like, some people prefer fruit every single day', 10);
   assert.equal(result.vocalizedFillers, 1);
@@ -30,4 +29,12 @@ test('distinguishes literal and parenthetical multiword phrases', () => {
   const result = analyzeTranscript('Do you know the answer? You know, I may need another moment. I mean what I say.', 12);
   assert.equal(result.fillers, 1);
   assert.equal(result.fillerDetails[0].phrase, 'You know');
+});
+
+test('moves restarts and incomplete endings into delivery feedback', () => {
+  const result = analyzeTranscript('I I want to explain why reading matters because', 12);
+  assert.equal(result.repeats, 1);
+  assert.equal(result.incompletePhrases, 1);
+  assert.equal(result.deliveryDetails.filter((item) => item.kind === 'repetition').length, 1);
+  assert.equal(result.deliveryDetails.filter((item) => item.kind === 'incomplete').length, 1);
 });

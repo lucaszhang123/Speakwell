@@ -8,7 +8,7 @@
     "start:static": "python3 -m http.server 4173 --directory dist",
     "build": "esbuild src/analysis.js src/audio-analysis.js --bundle --format=esm --platform=browser --target=es2020 --outdir=dist",
     "test": "npm run build && node --test tests/*.test.js",
-    "check": "node --check dist/app.js && node --check dist/analysis.js && node --check dist/audio-analysis.js && node --check server.mjs && node --check server/content-analysis.js"
+    "check": "node --check dist/app.js && node --check dist/analysis.js && node --check dist/audio-analysis.js && node --check dist/supabase-config.js && node --check server.mjs && node --check server/content-analysis.js && node --check functions/api/analyze-content.js && node --check functions/api/auth-config.js"
   },
   "dependencies": {},
   "devDependencies": {

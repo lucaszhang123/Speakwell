@@ -2,10 +2,9 @@ const SCORE = {type: 'integer', minimum: 0, maximum: 100};
 const schema = {
   type: 'object',
   additionalProperties: false,
-  required: ['content_score', 'clarity_score', 'organization_score', 'relevance_score', 'main_idea', 'strengths', 'improvements'],
+  required: ['content_score', 'organization_score', 'relevance_score', 'main_idea', 'strengths', 'improvements'],
   properties: {
     content_score: SCORE,
-    clarity_score: SCORE,
     organization_score: SCORE,
     relevance_score: SCORE,
     main_idea: {type: 'string'},
@@ -23,15 +22,14 @@ const schema = {
   },
 };
 
-const instructions = `You are a public-speaking content coach. Evaluate whether the transcript communicates a logically understandable message in response to the assigned topic and prompt.
+const instructions = `You are a public-speaking content coach. Evaluate how well the transcript is organized and how directly it responds to the assigned topic and prompt.
 
-Score four dimensions from 0 to 100:
-- clarity: claims and sentences have understandable meaning and do not contradict or collapse into unrelated fragments
-- organization: ideas follow a discernible progression with useful connections
+Score three dimensions from 0 to 100:
+- organization: the response has a discernible progression, with ideas connected in a useful order
 - relevance: the speech answers the assigned prompt
-- content: the overall judgment, weighting clarity 45%, organization 30%, and relevance 25%
+- content: the overall judgment, weighting organization 50% and relevance 50%
 
-Treat this as spoken language. Ignore harmless fragments, informal grammar, missing punctuation, and likely speech-recognition mistakes unless they prevent understanding. Do not judge the speaker's opinion, accent, identity, vocabulary sophistication, or factual accuracy. Identify the intended main idea. Quote only short excerpts from the supplied transcript. Give concrete revision advice. A fluent but incoherent sequence must receive a low clarity score.`;
+Treat this as spoken language. Ignore informal grammar, missing punctuation, likely speech-recognition mistakes, filler words, stutters, and incomplete phrases. Those are delivery issues, not content issues. Do not judge the speaker's opinion, accent, identity, vocabulary sophistication, factual accuracy, or sentence-level grammar. Identify the intended main idea. Quote only short excerpts from the supplied transcript. Give concrete revision advice about organization or relevance.`;
 
 function extractText(payload) {
   if (typeof payload.output_text === 'string') return payload.output_text;
@@ -41,7 +39,6 @@ function extractText(payload) {
   }
   return parts.join('');
 }
-
 function parseEvaluation(payload) {
   if (payload.status === 'incomplete') {
     const reason = payload.incomplete_details?.reason;
@@ -83,7 +80,7 @@ export async function evaluateContent({topic, prompt, transcript}, {apiKey, mode
     throw Object.assign(new Error(message), {status: response.status >= 500 ? 502 : response.status, code: 'openai_error'});
   }
   const result = parseEvaluation(payload);
-  result.content_score = Math.round(result.clarity_score * 0.45 + result.organization_score * 0.3 + result.relevance_score * 0.25);
+  result.content_score = Math.round(result.organization_score * 0.5 + result.relevance_score * 0.5);
   return result;
 }
 

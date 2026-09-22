@@ -9,6 +9,8 @@ var COMPARISON_VERBS = /* @__PURE__ */ new Set(["feel", "feels", "felt", "seem",
 var COPULAS = /* @__PURE__ */ new Set(["am", "is", "are", "was", "were", "be", "been", "it's", "its"]);
 var MODIFIERS = /* @__PURE__ */ new Set(["almost", "exactly", "just", "more", "less", "quite", "rather", "very"]);
 var AUXILIARIES = /* @__PURE__ */ new Set(["do", "does", "did", "don't", "dont", "doesn't", "doesnt", "didn't", "didnt", "can", "could", "would", "should", "will", "may", "might"]);
+var EMPHATIC_REPEATS = /* @__PURE__ */ new Set(["no", "yes", "very", "really", "so", "never"]);
+var TRAILING_CONNECTORS = /* @__PURE__ */ new Set(["a", "an", "and", "as", "at", "because", "but", "for", "from", "if", "in", "of", "on", "or", "so", "than", "that", "the", "then", "to", "when", "which", "with"]);
 function tokenize(text) {
   return [...text.matchAll(TOKEN_PATTERN)].map((match) => ({ raw: match[0], value: match[0].toLowerCase().replace("\u2019", "'"), index: match.index }));
 }
@@ -72,10 +74,36 @@ function contextualFillers(text) {
   });
   return matches.sort((a, b) => a.index - b.index);
 }
+function deliveryDisfluencies(text) {
+  const tokens = tokenize(text).filter((token) => /^[a-z]/.test(token.value));
+  const repetitions = [];
+  for (let index = 1; index < tokens.length; index += 1) {
+    const word = tokens[index].value;
+    if (word !== tokens[index - 1].value || EMPHATIC_REPEATS.has(word)) continue;
+    repetitions.push({
+      phrase: `${tokens[index - 1].raw} ${tokens[index].raw}`,
+      index: tokens[index - 1].index,
+      reason: "An immediate repeated word can sound like a stutter or a restart. Keep it when repetition is deliberate emphasis.",
+      confidence: "medium",
+      kind: "repetition",
+      context: contextSnippet(text, tokens[index - 1].index, tokens[index].index + tokens[index].raw.length - tokens[index - 1].index)
+    });
+  }
+  const last = tokens.at(-1);
+  const incomplete = last && TRAILING_CONNECTORS.has(last.value) ? [{
+    phrase: last.raw,
+    index: last.index,
+    reason: "The recognized response appears to end on a connector or unfinished phrase. Finish the thought or pause after a complete point.",
+    confidence: "low",
+    kind: "incomplete",
+    context: contextSnippet(text, last.index, last.raw.length)
+  }] : [];
+  return { repetitions, incomplete };
+}
 function analyzeTranscript(text, seconds) {
   const words = text.toLowerCase().match(WORD_PATTERN) || [];
   const fillerDetails = contextualFillers(text);
-  const repeatedDetails = words.filter((word, index) => index > 0 && word === words[index - 1]);
+  const { repetitions, incomplete } = deliveryDisfluencies(text);
   const vocalizedFillers = fillerDetails.filter((item) => item.kind === "vocalized").length;
   return {
     words: words.length,
@@ -84,8 +112,12 @@ function analyzeTranscript(text, seconds) {
     vocalizedFillers,
     contextualFillers: fillerDetails.length - vocalizedFillers,
     fillerDetails,
-    repeats: repeatedDetails.length,
-    repeated: repeatedDetails,
+    repeats: repetitions.length,
+    repeated: repetitions.map((item) => item.phrase),
+    repetitionDetails: repetitions,
+    incompletePhrases: incomplete.length,
+    incompleteDetails: incomplete,
+    deliveryDetails: [...fillerDetails, ...repetitions, ...incomplete].sort((a, b) => a.index - b.index),
     valid: words.length >= 10 && Number.isFinite(seconds) && seconds >= 5
   };
 }

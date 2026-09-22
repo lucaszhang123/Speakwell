@@ -1,11 +1,12 @@
 import {analyzeTranscript} from './analysis.js';
 import {createAudioTracker, scoreSpeaking} from './audio-analysis.js';
+import {SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL} from './supabase-config.js';
 
 const $ = (id) => document.getElementById(id);
 const topics = {
-  everyday: [['Candy', 'What makes a childhood favorite so memorable?'], ['Polar bears', 'What could we learn from life in an extreme environment?'], ['Rainy days', 'Tell a story about finding something good in a gloomy day.'], ['Coffee', 'Explain the ritual behind an everyday drink.'], ['A favorite book', 'Share one idea that stayed with you.'], ['Bicycles', 'Why does a simple invention make such a difference?'], ['Street food', 'Take your audience on a tour of your favorite flavors.'], ['Houseplants', 'What can caring for something small teach us?'], ['Board games', 'What makes a game worth playing again?'], ['Music', 'Describe a song through the memory it brings back.'], ['The ocean', 'Explain what fascinates you about the sea.'], ['A perfect weekend', 'Walk us through your ideal way to recharge.']],
-  discovery: [['The Mpemba effect', 'Research when warmer water may freeze sooner than cooler water. Explain the conditions and the uncertainty.', 'Mpemba effect'], ['The doorway effect', 'Research why walking into a new room can affect recall. Explain an experiment and its limits.', 'doorway effect memory'], ['The cocktail party effect', 'How do we attend to one voice in a crowded room? Research a possible explanation.', 'cocktail party effect auditory attention'], ['Slime mold navigation', 'Research how slime molds form networks. Explain what the findings do and do not show.', 'Physarum network formation'], ['The rubber hand illusion', 'Research how a simple illusion changes our sense of body ownership.', 'rubber hand illusion'], ['Sonoluminescence', 'Research how collapsing bubbles can emit light. Explain what remains uncertain.', 'sonoluminescence'], ['The Leidenfrost effect', 'Research why a droplet can glide over a very hot surface.', 'Leidenfrost effect'], ['The missing satellite problem', 'Research the gap between predicted and observed small satellite galaxies.', 'missing satellites problem']],
-  argument: [['What is one policy you would enact if you were president?', 'Explain your proposal, acknowledge a tradeoff, and consider an objection.'], ['What makes a good leader?', 'Choose one quality and defend it with a concrete example.'], ['Should schools start later?', 'Make a case, acknowledge a tradeoff, and respond to an objection.'], ['Is talent or practice more important?', 'Choose your position and explain the strongest reason for it.'], ['Should everyone learn a musical instrument?', 'Build an argument with a clear claim, example, and conclusion.'], ['Is competition good for creativity?', 'Defend your view while considering the other side.'], ['Should a four-day workweek be the norm?', 'Explain a benefit, a cost, and how you would weigh them.'], ['Would you rather explore space or the ocean?', 'Choose where to focus and support your argument.']],
+  everyday: [['Candy', 'What makes a childhood favorite so memorable?'], ['Polar bears', 'What could we learn from life in an extreme environment?'], ['Rainy days', 'Tell a story about finding something good in a gloomy day.'], ['Coffee', 'Explain the ritual behind an everyday drink.'], ['A favorite book', 'Share one idea that stayed with you.'], ['Bicycles', 'Why does a simple invention make such a difference?'], ['Street food', 'Take your audience on a tour of your favorite flavors.'], ['Houseplants', 'What can caring for something small teach us?'], ['Board games', 'What makes a game worth playing again?'], ['Music', 'Describe a song through the memory it brings back.'], ['The ocean', 'Explain what fascinates you about the sea.'], ['A perfect weekend', 'Walk us through your ideal way to recharge.'], ['Your morning routine', 'Describe one part of your routine that sets the tone for your day.'], ['A place you would revisit', 'Take your audience there and explain why you would go back.'], ['The best meal you have had', 'Describe the meal and the memory that makes it stand out.'], ['A small act of kindness', 'Tell a story about a kind gesture and why it mattered.'], ['A useful object', 'Choose an everyday object and explain why it deserves more appreciation.'], ['A family tradition', 'Describe a tradition and what it says about the people involved.'], ['Your ideal classroom', 'Explain what it would feel like to learn there.'], ['A skill everyone should learn', 'Name the skill and give a practical reason it matters.'], ['A memorable celebration', 'Tell the story of a celebration and the moment you remember most.'], ['A piece of advice', 'Share advice that has helped you, and explain when it is useful.']],
+  discovery: [['The Mpemba effect', 'Research when warmer water may freeze sooner than cooler water. Explain the conditions and the uncertainty.', 'Mpemba effect'], ['The doorway effect', 'Research why walking into a new room can affect recall. Explain an experiment and its limits.', 'doorway effect memory'], ['The cocktail party effect', 'How do we attend to one voice in a crowded room? Research a possible explanation.', 'cocktail party effect auditory attention'], ['Slime mold navigation', 'Research how slime molds form networks. Explain what the findings do and do not show.', 'Physarum network formation'], ['The rubber hand illusion', 'Research how a simple illusion changes our sense of body ownership.', 'rubber hand illusion'], ['Sonoluminescence', 'Research how collapsing bubbles can emit light. Explain what remains uncertain.', 'sonoluminescence'], ['The Leidenfrost effect', 'Research why a droplet can glide over a very hot surface.', 'Leidenfrost effect'], ['The missing satellite problem', 'Research the gap between predicted and observed small satellite galaxies.', 'missing satellites problem'], ['Tardigrades', 'Research how tardigrades survive harsh environments and separate established evidence from popular claims.', 'tardigrade survival mechanisms'], ['Bioluminescence', 'Explain why some living things produce light and how that ability helps them.', 'bioluminescence function'], ['The placebo effect', 'Explain what researchers mean by the placebo effect and why it matters in clinical studies.', 'placebo effect clinical trials'], ['Ant communication', 'Research how ants communicate and give one example of how a colony uses that information.', 'ant communication pheromones'], ['The Great Red Spot', 'Explain what scientists know about Jupiter’s Great Red Spot and what remains uncertain.', 'Jupiter Great Red Spot research'], ['The science of sleep', 'Describe one important role sleep plays and explain the evidence behind it.', 'sleep function research'], ['CRISPR', 'Explain the basic idea behind CRISPR and one question it raises.', 'CRISPR gene editing overview'], ['The Northern Lights', 'Explain how auroras form and why they appear near the poles.', 'aurora borealis science'], ['The microbiome', 'Explain what the human microbiome is and why scientists study it.', 'human microbiome overview'], ['Black holes', 'Explain one way scientists detect black holes even though light cannot escape them.', 'how scientists detect black holes']],
+  argument: [['What is one policy you would enact if you were president?', 'Explain your proposal, acknowledge a tradeoff, and consider an objection.'], ['What makes a good leader?', 'Choose one quality and defend it with a concrete example.'], ['Should schools start later?', 'Make a case, acknowledge a tradeoff, and respond to an objection.'], ['Is talent or practice more important?', 'Choose your position and explain the strongest reason for it.'], ['Should everyone learn a musical instrument?', 'Build an argument with a clear claim, example, and conclusion.'], ['Is competition good for creativity?', 'Defend your view while considering the other side.'], ['Should a four-day workweek be the norm?', 'Explain a benefit, a cost, and how you would weigh them.'], ['Would you rather explore space or the ocean?', 'Choose where to focus and support your argument.'], ['Should homework be limited?', 'Make a clear case and address one concern about your position.'], ['Are phones helpful in class?', 'Choose a position and explain what rule you would adopt.'], ['Should voting be mandatory?', 'Defend your position while considering individual choice.'], ['Is social media good for friendship?', 'Make an argument that includes both a benefit and a drawback.'], ['Should public transit be free?', 'Explain who would benefit, what the cost might be, and your conclusion.'], ['Should cities plant more trees?', 'Make your case with one concrete benefit and one realistic challenge.'], ['Should college be free?', 'Explain your position and respond to one likely objection.'], ['Should athletes be paid in college?', 'State your view and use one reason that matters most.'], ['Is artificial intelligence more helpful or harmful in school?', 'Choose a side, define one limit, and support your argument.'], ['Should schools require community service?', 'Argue for or against the requirement with a clear example.']],
 };
 
 let mode = 'everyday';
@@ -28,10 +29,142 @@ let recognitionFailed = false;
 let recognitionRetries = 0;
 let run = 0;
 let contentRequest = 0;
+let authClient;
+let currentUser;
+let savedRound = -1;
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 const time = (number) => `${Math.floor(number / 60)}:${String(number % 60).padStart(2, '0')}`;
 const scoreLabel = (score) => score >= 85 ? 'Strong' : score >= 70 ? 'Solid foundation' : score >= 55 ? 'Developing' : 'Needs another pass';
+const scoreValue = (id) => {
+  const value = Number($(id).textContent);
+  return Number.isFinite(value) ? value : null;
+};
+
+function updateAccount(user) {
+  currentUser = user || null;
+  $('account-toggle').textContent = currentUser ? currentUser.email : 'Sign in';
+  $('auth-fields').hidden = Boolean(currentUser);
+  $('sign-out').hidden = !currentUser;
+  $('progress').hidden = !currentUser;
+  $('auth-message').textContent = currentUser ? `Signed in as ${currentUser.email}` : 'Sign in to save your practice history.';
+  if (currentUser) loadProgress();
+}
+
+function setAuthMessage(message) {
+  $('auth-message').textContent = message;
+}
+
+function renderProgress(attempts) {
+  const history = $('progress-history');
+  history.replaceChildren();
+  if (!attempts.length) {
+    $('progress-summary').textContent = 'Your completed practice rounds will appear here.';
+    return;
+  }
+  const speaking = attempts.filter((item) => Number.isFinite(item.speaking_score)).map((item) => item.speaking_score);
+  const content = attempts.filter((item) => Number.isFinite(item.content_score)).map((item) => item.content_score);
+  const average = (values) => values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : '—';
+  $('progress-summary').textContent = `${attempts.length} saved round${attempts.length === 1 ? '' : 's'} · average speaking ${average(speaking)} · average content ${average(content)}`;
+  attempts.forEach((attempt) => {
+    const item = document.createElement('div');
+    item.className = 'progress-item';
+    const title = document.createElement('div');
+    const heading = document.createElement('strong');
+    heading.textContent = attempt.topic;
+    const date = document.createElement('small');
+    date.textContent = new Date(attempt.created_at).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
+    title.append(heading, date);
+    const speakingScore = document.createElement('div');
+    speakingScore.className = 'progress-score';
+    speakingScore.textContent = 'speaking';
+    const speakingValue = document.createElement('b');
+    speakingValue.textContent = attempt.speaking_score ?? '—';
+    speakingScore.append(speakingValue);
+    const contentScore = document.createElement('div');
+    contentScore.className = 'progress-score';
+    contentScore.textContent = 'content';
+    const contentValue = document.createElement('b');
+    contentValue.textContent = attempt.content_score ?? '—';
+    contentScore.append(contentValue);
+    item.append(title, speakingScore, contentScore);
+    history.append(item);
+  });
+}
+
+async function loadProgress() {
+  if (!authClient || !currentUser) return;
+  const {data, error} = await authClient.from('practice_attempts').select('created_at, topic, speaking_score, content_score').order('created_at', {ascending: false}).limit(8);
+  if (error) {
+    $('progress-summary').textContent = 'Progress storage needs the Supabase table setup described in the README.';
+    return;
+  }
+  renderProgress(data || []);
+}
+
+async function savePractice() {
+  if (!authClient || !currentUser || savedRound === run || seconds < 5) return;
+  savedRound = run;
+  const transcript = analyzeTranscript($('transcript').value, seconds);
+  const {error} = await authClient.from('practice_attempts').insert({
+    user_id: currentUser.id,
+    topic: $('topic').textContent,
+    prompt: $('prompt').textContent,
+    duration_seconds: Math.round(seconds),
+    speaking_score: scoreValue('speaking-score'),
+    content_score: scoreValue('content-score'),
+    organization_score: scoreValue('organization-score'),
+    relevance_score: scoreValue('relevance-score'),
+    pace_wpm: transcript.valid ? transcript.pace : null,
+    filler_count: transcript.fillers,
+    repetition_count: transcript.repeats,
+  });
+  if (error) {
+    savedRound = -1;
+    $('progress-summary').textContent = 'This round could not be saved. Check the Supabase setup and try again.';
+    return;
+  }
+  loadProgress();
+}
+
+async function initializeAuth() {
+  try {
+    let config = {url: SUPABASE_URL, publishableKey: SUPABASE_PUBLISHABLE_KEY};
+    if (!config.url || !config.publishableKey) {
+      const response = await fetch('/api/auth-config');
+      config = response.ok ? await response.json() : config;
+    }
+    if (!config.url || !config.publishableKey) {
+      setAuthMessage('Accounts are not configured yet. Add the Supabase values described in the README.');
+      return;
+    }
+    const {createClient} = await import('https://esm.sh/@supabase/supabase-js@2');
+    authClient = createClient(config.url, config.publishableKey);
+    const {data: {session}} = await authClient.auth.getSession();
+    updateAccount(session?.user);
+    authClient.auth.onAuthStateChange((_event, session) => updateAccount(session?.user));
+  } catch {
+    setAuthMessage('Accounts are unavailable right now. You can still practice without signing in.');
+  }
+}
+
+async function signIn() {
+  if (!authClient) { setAuthMessage('Accounts are not configured yet.'); return; }
+  const email = $('auth-email').value.trim();
+  const password = $('auth-password').value;
+  if (!email || !password) { setAuthMessage('Enter an email address and password.'); return; }
+  const {error} = await authClient.auth.signInWithPassword({email, password});
+  setAuthMessage(error ? error.message : 'Signed in. Your progress is now saved.');
+}
+
+async function signUp() {
+  if (!authClient) { setAuthMessage('Accounts are not configured yet.'); return; }
+  const email = $('auth-email').value.trim();
+  const password = $('auth-password').value;
+  if (!email || password.length < 8) { setAuthMessage('Enter an email address and a password with at least 8 characters.'); return; }
+  const {data, error} = await authClient.auth.signUp({email, password, options: {emailRedirectTo: `${location.origin}${location.pathname}`}});
+  setAuthMessage(error ? error.message : data.session ? 'Account created. Your progress is now saved.' : 'Account created. Check your email to confirm the account, then sign in.');
+}
 
 function topicChange(random = true) {
   if (['recording', 'starting', 'stopping'].includes(phase)) return;
@@ -77,6 +210,8 @@ function renderSpeaking() {
   $('rushing').textContent = speaking.rushing === null ? '—' : speaking.rushing ? 'Detected' : 'No';
   $('vocal-fillers').textContent = transcript.vocalizedFillers;
   $('context-fillers').textContent = transcript.contextualFillers;
+  $('repetitions').textContent = transcript.repeats;
+  $('incomplete-phrases').textContent = transcript.incompletePhrases;
   $('elapsed').textContent = seconds.toFixed(1);
   const tips = [];
   if (!speaking.valid) tips.push('Speak for at least 5 seconds and capture 10 words for a speaking score.');
@@ -85,6 +220,8 @@ function renderSpeaking() {
     if (speaking.monotone) tips.push('Emphasize one key word per sentence and vary your pitch at transitions.');
     if (speaking.components.volumeConsistency < 70) tips.push('Keep a steadier distance from the microphone and aim for a more even volume.');
     if (transcript.vocalizedFillers) tips.push('Replace an “um” or “uh” with a silent pause.');
+    if (transcript.repeats) tips.push('When you restart a word, pause briefly and begin the thought again once.');
+    if (transcript.incompletePhrases) tips.push('End the response with a complete thought rather than a connector.');
     if (!tips.length) tips.push('Your pace, volume, and vocal variation are in a useful practice range.');
   }
   $('coach').textContent = tips.join(' ');
@@ -93,9 +230,8 @@ function renderSpeaking() {
   const heading = document.createElement('h4');
   heading.textContent = 'Transcript delivery review';
   detected.append(heading);
-  if (transcript.fillerDetails.length) transcript.fillerDetails.forEach((item) => detected.append(feedbackItem(`“${item.phrase}” · ${item.confidence} confidence`, item.reason, item.context)));
-  else detected.append(feedbackItem('No fillers found', 'No vocalized or contextual filler looked removable based on the recognized transcript.'));
-  if (transcript.repeats) detected.append(feedbackItem(`${transcript.repeats} immediate repetition${transcript.repeats === 1 ? '' : 's'}`, `Review: ${transcript.repeated.join(', ')}. Repetition can also be emphasis or a recognition error.`));
+  if (transcript.deliveryDetails.length) transcript.deliveryDetails.forEach((item) => detected.append(feedbackItem(`“${item.phrase}” · ${item.confidence} confidence`, item.reason, item.context)));
+  else detected.append(feedbackItem('No delivery issues found', 'No removable fillers, immediate restarts, or incomplete endings were found in the recognized transcript.'));
 }
 
 async function renderContent() {
@@ -104,8 +240,8 @@ async function renderContent() {
   const contentFeedback = $('content-feedback');
   contentFeedback.replaceChildren();
   $('content-score').textContent = '…';
-  $('content-status').textContent = 'Checking logical clarity…';
-  ['clarity-score', 'organization-score', 'relevance-score'].forEach((id) => { $(id).textContent = '—'; });
+  $('content-status').textContent = 'Checking organization and relevance…';
+  ['organization-score', 'relevance-score'].forEach((id) => { $(id).textContent = '—'; });
   try {
     const response = await fetch('/api/analyze-content', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({topic: $('topic').textContent, prompt: $('prompt').textContent, transcript})});
     const result = await response.json().catch(() => ({}));
@@ -113,7 +249,6 @@ async function renderContent() {
     if (requestId !== contentRequest) return;
     $('content-score').textContent = result.content_score;
     $('content-status').textContent = scoreLabel(result.content_score);
-    $('clarity-score').textContent = result.clarity_score;
     $('organization-score').textContent = result.organization_score;
     $('relevance-score').textContent = result.relevance_score;
     const heading = document.createElement('h4'); heading.textContent = 'Content review'; contentFeedback.append(heading);
@@ -130,7 +265,7 @@ async function renderContent() {
 
 function renderFeedback() {
   renderSpeaking();
-  renderContent();
+  renderContent().finally(savePractice);
 }
 
 function finishReview() {
@@ -211,7 +346,16 @@ function stop() {
 $('record').onclick = () => phase === 'recording' ? stop() : start();
 $('shuffle').onclick = () => topicChange();
 $('rescore').onclick = renderFeedback;
+$('account-toggle').onclick = () => { $('account-menu').hidden = !$('account-menu').hidden; };
+$('sign-in').onclick = signIn;
+$('sign-up').onclick = signUp;
+$('sign-out').onclick = async () => {
+  if (!authClient) return;
+  const {error} = await authClient.auth.signOut();
+  if (error) setAuthMessage(error.message);
+};
 document.querySelectorAll('input[name=mode]').forEach((input) => { input.onchange = () => { mode = input.value; document.querySelectorAll('.mode').forEach((element) => element.classList.toggle('selected', element.contains(input))); topicChange(false); if (phase === 'review') { phase = 'idle'; $('review').hidden = true; $('empty').hidden = false; } }; });
 document.querySelectorAll('input[name=duration]').forEach((input) => { input.onchange = () => { duration = Number(input.value); $('timer').textContent = time(duration); $('progress').max = duration; $('progress').value = 0; }; });
 if (!Recognition) $('message').textContent = 'Live transcription is unavailable in this browser. Recording still works; add a transcript afterward.';
+initializeAuth();
 window.addEventListener('pagehide', () => { clearInterval(clock); recognition?.abort(); stream?.getTracks().forEach((track) => track.stop()); if (url) URL.revokeObjectURL(url); });
