@@ -4,7 +4,7 @@ Speakwell is a public-speaking practice app that helps users improve both delive
 
 ## Features
 
-- Random prompts across everyday storytelling, curious discoveries, and arguments
+- 758 prompts across everyday storytelling (322), curious discoveries (318), and arguments (118), including different speaking angles for everyday and research topics
 - Timed microphone recording with a downloadable audio file
 - Editable browser-generated transcript
 - Speaking feedback for pace, vocal variation, volume consistency, pauses, fillers, immediate restarts, and possible incomplete endings
@@ -107,9 +107,9 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your_publishable_key
 ```
 
-5. Restart Speakwell. The **Sign in** button now supports creating an account, signing in, signing out, and viewing saved progress.
+5. Restart Speakwell. The **Sign in** link opens `login.html`, a dedicated page for creating an account, signing in, and signing out. Successful sign-in returns to the studio and saved progress.
 
-If email confirmation is enabled, confirm the email before signing in. Add your local app URL (`http://localhost:4173/`) to the allowed redirect URLs in Supabase Authentication's URL configuration.
+If email confirmation is enabled, confirm the email before signing in. Add your local app URL (`http://localhost:4173/login.html`) to the allowed redirect URLs in Supabase Authentication's URL configuration.
 
 The browser receives the Supabase URL and publishable key so it can sign users in directly. Row-level security in `supabase/schema.sql` protects the saved records. Keep all secret or service-role keys private and off the client.
 

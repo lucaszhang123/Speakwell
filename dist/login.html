@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f7f6f2"><title>Sign in — Speakwell</title><link rel="stylesheet" href="style.css"></head>
+<body class="login-page">
+<header><a class="brand" href="./">speakwell<span class="brand-dot">.</span></a><a class="nav-link" href="./">Back to the studio ↗</a></header>
+<main class="login-layout">
+<section class="login-card" aria-labelledby="auth-title">
+<div id="auth-choices" class="auth-tabs" aria-label="Account options"><button id="mode-sign-in" type="button" aria-pressed="true">Sign in</button><button id="mode-sign-up" type="button" aria-pressed="false">Create account</button></div>
+<h2 id="auth-title">Welcome back.</h2><p id="auth-description">Make room for your next breakthrough.</p>
+<p id="auth-message" role="status" aria-live="polite">Connecting to accounts…</p>
+<form id="auth-fields">
+<label for="auth-email">Email</label><input id="auth-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+<label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="current-password" placeholder="Your password" required aria-describedby="password-help"><small id="password-help" hidden>Use at least 8 characters.</small>
+<button id="auth-submit" class="primary" type="submit" disabled>Sign in</button>
+</form>
+<div id="account-details" hidden><p id="account-email"></p><a class="primary" href="./sessions.html">View my sessions ↗</a><button id="sign-out" class="text-button" type="button">Sign out</button></div>
+<button id="auth-retry" class="secondary" type="button" hidden>Try connecting again</button>
+<a id="guest-link" class="guest-link" href="./">Continue practicing as a guest ↗</a>
+</section></main><script type="module" src="auth.js"></script></body></html>
