@@ -10,6 +10,9 @@ Speakwell is a public-speaking practice app that helps users improve both delive
 - Speaking feedback for pace, vocal variation, volume consistency, pauses, fillers, immediate restarts, and possible incomplete endings
 - AI content feedback for organization and relevance to the assigned prompt
 - Local audio analysis that does not send recordings to the content-analysis endpoint
+- A responsive, microphone-inspired practice studio with keyboard-accessible controls
+- Email sign-in and a private session history with dates, prompts, scores, and delivery details
+- Session averages and pagination to revisit older attempts
 
 ## Requirements
 
@@ -49,7 +52,7 @@ Open [http://localhost:4173](http://localhost:4173) in your browser. Allow micro
 2. Select **Start speaking** and respond to the prompt.
 3. Finish the recording or let the timer end the round.
 4. Correct the transcript if the browser misunderstood anything.
-5. Select **Update both scores** to refresh the feedback.
+5. Select **Update feedback** to refresh the feedback.
 6. Use the suggestions before trying another prompt.
 
 ## Speaking score
@@ -87,10 +90,15 @@ Keep the OpenAI API key in `.env`. Never put it in browser code.
 
 Speakwell supports email sign-up and sign-in through Supabase. Signed-in users save a small record for each completed round: the topic, date, duration, delivery metrics, and content and speaking scores. Audio recordings and transcript text are not stored in the progress history.
 
+Sign in **before recording**, then open **My sessions** to revisit your attempts. Each round of at least 5 seconds is saved after feedback finishes, even if AI content feedback is unavailable. Expand a session to see its prompt, duration, organization, relevance, pace, fillers, and restarts. **Load older sessions** reveals earlier attempts; averages describe the sessions currently loaded.
+
+Updating feedback edits the same saved session, rather than adding a second attempt. If a save fails, keep the tab open and select **Retry saving**. Guest rounds and recordings made before history was configured cannot be recovered from the server. Audio and transcripts remain available only in the current tab (unless you download the audio).
+
 ### Supabase setup
 
 1. Create a Supabase project and enable **Email** under **Authentication**.
 2. In the Supabase SQL Editor, run [`supabase/schema.sql`](supabase/schema.sql). It creates the practice-history table and row-level security policies so each user can read and save only their own attempts.
+   **Already have the table?** Run only [`supabase/migrations/20260922_session_history.sql`](supabase/migrations/20260922_session_history.sql) instead. This preserves old attempts and enables duplicate-safe saving and score updates.
 3. Copy the project URL and the **publishable** key from Supabase’s Connect dialog or API settings. Do not use a secret or service-role key.
 4. Add these values to `.env`:
 
@@ -101,11 +109,21 @@ SUPABASE_PUBLISHABLE_KEY=your_publishable_key
 
 5. Restart Speakwell. The **Sign in** button now supports creating an account, signing in, signing out, and viewing saved progress.
 
+If email confirmation is enabled, confirm the email before signing in. Add your local app URL (`http://localhost:4173/`) to the allowed redirect URLs in Supabase Authentication's URL configuration.
+
 The browser receives the Supabase URL and publishable key so it can sign users in directly. Row-level security in `supabase/schema.sql` protects the saved records. Keep all secret or service-role keys private and off the client.
 
 When Speakwell runs as a static site, add the same public values to `dist/supabase-config.js`. The URL and publishable key can appear in a static app because they are not secrets. Never put a Supabase secret or service-role key in that file.
 
 ## Troubleshooting
+
+**Accounts are not configured / sessions will not load**
+
+Add the Supabase URL and publishable key to `.env`, run the schema (or migration for an existing table), and restart the server. No Supabase secret or service-role key is needed. Sign in before recording a new round; previous saved attempts load automatically.
+
+**A session says “Not saved yet”**
+
+Check your internet connection and ensure the session-history migration has been applied. Select **Retry saving** while the recording tab is still open. This retries the same session without creating duplicates.
 
 **Microphone does not work**
 

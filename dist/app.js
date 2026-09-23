@@ -2,6 +2,8 @@ import {analyzeTranscript} from './analysis.js';
 import {createAudioTracker, scoreSpeaking} from './audio-analysis.js';
 import {SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL} from './supabase-config.js';
 
+import {fetchAttempts, summarizeAttempts, persistAttempt, PAGE_SIZE} from './history.js';
+
 const $ = (id) => document.getElementById(id);
 const topics = {
   everyday: [['Candy', 'What makes a childhood favorite so memorable?'], ['Polar bears', 'What could we learn from life in an extreme environment?'], ['Rainy days', 'Tell a story about finding something good in a gloomy day.'], ['Coffee', 'Explain the ritual behind an everyday drink.'], ['A favorite book', 'Share one idea that stayed with you.'], ['Bicycles', 'Why does a simple invention make such a difference?'], ['Street food', 'Take your audience on a tour of your favorite flavors.'], ['Houseplants', 'What can caring for something small teach us?'], ['Board games', 'What makes a game worth playing again?'], ['Music', 'Describe a song through the memory it brings back.'], ['The ocean', 'Explain what fascinates you about the sea.'], ['A perfect weekend', 'Walk us through your ideal way to recharge.'], ['Your morning routine', 'Describe one part of your routine that sets the tone for your day.'], ['A place you would revisit', 'Take your audience there and explain why you would go back.'], ['The best meal you have had', 'Describe the meal and the memory that makes it stand out.'], ['A small act of kindness', 'Tell a story about a kind gesture and why it mattered.'], ['A useful object', 'Choose an everyday object and explain why it deserves more appreciation.'], ['A family tradition', 'Describe a tradition and what it says about the people involved.'], ['Your ideal classroom', 'Explain what it would feel like to learn there.'], ['A skill everyone should learn', 'Name the skill and give a practical reason it matters.'], ['A memorable celebration', 'Tell the story of a celebration and the moment you remember most.'], ['A piece of advice', 'Share advice that has helped you, and explain when it is useful.']],
@@ -31,7 +33,12 @@ let run = 0;
 let contentRequest = 0;
 let authClient;
 let currentUser;
-let savedRound = -1;
+let round;
+let historyRows = [];
+let historyTotal = 0;
+let historyRequest = 0;
+let historyLoading = false;
+let authBusy = false;
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 const time = (number) => `${Math.floor(number / 60)}:${String(number % 60).padStart(2, '0')}`;
@@ -41,90 +48,157 @@ const scoreValue = (id) => {
   return Number.isFinite(value) ? value : null;
 };
 
+
+function setAccountMenu(open) {
+  $('account-menu').hidden = !open;
+  $('account-toggle').setAttribute('aria-expanded', String(open));
+  if (open && !currentUser) $('auth-email').focus();
+}
+
 function updateAccount(user) {
+  const changed = currentUser?.id !== user?.id;
   currentUser = user || null;
-  $('account-toggle').textContent = currentUser ? currentUser.email : 'Sign in';
+  $('account-toggle').textContent = currentUser ? 'My account' : 'Sign in';
   $('auth-fields').hidden = Boolean(currentUser);
   $('sign-out').hidden = !currentUser;
-  $('progress').hidden = !currentUser;
+  $('history-guest').hidden = Boolean(currentUser);
+  $('history-member').hidden = !currentUser;
+  $('refresh-history').hidden = !currentUser;
   $('auth-message').textContent = currentUser ? `Signed in as ${currentUser.email}` : 'Sign in to save your practice history.';
-  if (currentUser) loadProgress();
+  if (changed) {
+    historyRequest += 1;
+    historyLoading = false;
+    historyRows = [];
+    historyTotal = 0;
+    $('progress-history').replaceChildren();
+    $('history-stats').hidden = true;
+    $('load-more').hidden = true;
+    $('retry-save').hidden = true;
+    if (round && round.ownerId !== currentUser?.id) $('save-status').textContent = 'Sign in before your next round to save it to your account.';
+    if (currentUser) {
+      $('auth-password').value = '';
+      loadProgress();
+    }
+  }
 }
 
 function setAuthMessage(message) {
   $('auth-message').textContent = message;
 }
 
-function renderProgress(attempts) {
+function renderProgress() {
   const history = $('progress-history');
   history.replaceChildren();
-  if (!attempts.length) {
-    $('progress-summary').textContent = 'Your completed practice rounds will appear here.';
-    return;
-  }
-  const speaking = attempts.filter((item) => Number.isFinite(item.speaking_score)).map((item) => item.speaking_score);
-  const content = attempts.filter((item) => Number.isFinite(item.content_score)).map((item) => item.content_score);
-  const average = (values) => values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : '—';
-  $('progress-summary').textContent = `${attempts.length} saved round${attempts.length === 1 ? '' : 's'} · average speaking ${average(speaking)} · average content ${average(content)}`;
-  attempts.forEach((attempt) => {
-    const item = document.createElement('div');
-    item.className = 'progress-item';
+  const averages = summarizeAttempts(historyRows);
+  $('history-stats').hidden = !historyRows.length;
+  $('history-count').textContent = historyTotal;
+  $('history-speaking').textContent = averages.speaking ?? '—';
+  $('history-content').textContent = averages.content ?? '—';
+  $('progress-summary').textContent = historyRows.length
+    ? `Showing ${historyRows.length} of ${historyTotal} saved sessions. Select a session to see its details.`
+    : 'Your first take is waiting. Record a round of at least 5 seconds while signed in, and it will appear here.';
+  $('load-more').hidden = historyRows.length >= historyTotal;
+  historyRows.forEach((attempt) => {
+    const item = document.createElement('details');
+    item.className = 'history-item';
+    const summary = document.createElement('summary');
     const title = document.createElement('div');
+    title.className = 'history-title';
     const heading = document.createElement('strong');
     heading.textContent = attempt.topic;
     const date = document.createElement('small');
-    date.textContent = new Date(attempt.created_at).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
+    date.textContent = new Date(attempt.created_at).toLocaleString(undefined, {month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'});
     title.append(heading, date);
-    const speakingScore = document.createElement('div');
-    speakingScore.className = 'progress-score';
-    speakingScore.textContent = 'speaking';
-    const speakingValue = document.createElement('b');
-    speakingValue.textContent = attempt.speaking_score ?? '—';
-    speakingScore.append(speakingValue);
-    const contentScore = document.createElement('div');
-    contentScore.className = 'progress-score';
-    contentScore.textContent = 'content';
-    const contentValue = document.createElement('b');
-    contentValue.textContent = attempt.content_score ?? '—';
-    contentScore.append(contentValue);
-    item.append(title, speakingScore, contentScore);
+    summary.append(title);
+    ['speaking', 'content'].forEach((type) => {
+      const score = document.createElement('div');
+      score.className = 'history-score';
+      score.textContent = type;
+      const value = document.createElement('b');
+      value.textContent = attempt[`${type}_score`] ?? '—';
+      score.append(value);
+      summary.append(score);
+    });
+    const detail = document.createElement('div');
+    detail.className = 'history-detail';
+    const prompt = document.createElement('p');
+    prompt.textContent = attempt.prompt;
+    detail.append(prompt);
+    const metrics = document.createElement('dl');
+    [['Duration', attempt.duration_seconds == null ? '—' : `${attempt.duration_seconds}s`], ['Organization', attempt.organization_score], ['Relevance', attempt.relevance_score], ['Words / minute', attempt.pace_wpm], ['Fillers', attempt.filler_count], ['Restarts', attempt.repetition_count]].forEach(([label, value]) => {
+      const group = document.createElement('div');
+      const term = document.createElement('dt');
+      term.textContent = label;
+      const description = document.createElement('dd');
+      description.textContent = value ?? '—';
+      group.append(term, description);
+      metrics.append(group);
+    });
+    detail.append(metrics);
+    item.append(summary, detail);
     history.append(item);
   });
 }
 
-async function loadProgress() {
-  if (!authClient || !currentUser) return;
-  const {data, error} = await authClient.from('practice_attempts').select('created_at, topic, speaking_score, content_score').order('created_at', {ascending: false}).limit(8);
-  if (error) {
-    $('progress-summary').textContent = 'Progress storage needs the Supabase table setup described in the README.';
-    return;
+async function loadProgress(append = false) {
+  if (!authClient || !currentUser || (append && historyLoading)) return;
+  const userId = currentUser.id;
+  const requestId = ++historyRequest;
+  const offset = append ? historyRows.length : 0;
+  historyLoading = true;
+  $('load-more').disabled = true;
+  $('refresh-history').disabled = true;
+  $('progress-summary').textContent = append ? 'Loading older sessions…' : 'Loading your sessions…';
+  try {
+    const {data, count, error} = await fetchAttempts(authClient, userId, offset);
+    if (error) throw error;
+    if (requestId !== historyRequest || currentUser?.id !== userId) return;
+    const combined = append ? [...historyRows, ...(data || [])] : data || [];
+    historyRows = [...new Map(combined.map((item) => [item.id, item])).values()];
+    historyTotal = count ?? (offset + (data || []).length + ((data || []).length === PAGE_SIZE ? 1 : 0));
+    renderProgress();
+  } catch {
+    if (requestId !== historyRequest || currentUser?.id !== userId) return;
+    $('progress-summary').textContent = 'We couldn’t load your sessions. Check your connection, then select Refresh. If this is a new setup, run the Supabase schema in the README.';
+  } finally {
+    if (requestId === historyRequest) {
+      historyLoading = false;
+      $('load-more').disabled = false;
+      $('refresh-history').disabled = false;
+    }
   }
-  renderProgress(data || []);
 }
 
-async function savePractice() {
-  if (!authClient || !currentUser || savedRound === run || seconds < 5) return;
-  savedRound = run;
-  const transcript = analyzeTranscript($('transcript').value, seconds);
-  const {error} = await authClient.from('practice_attempts').insert({
-    user_id: currentUser.id,
-    topic: $('topic').textContent,
-    prompt: $('prompt').textContent,
-    duration_seconds: Math.round(seconds),
-    speaking_score: scoreValue('speaking-score'),
-    content_score: scoreValue('content-score'),
-    organization_score: scoreValue('organization-score'),
-    relevance_score: scoreValue('relevance-score'),
-    pace_wpm: transcript.valid ? transcript.pace : null,
-    filler_count: transcript.fillers,
-    repetition_count: transcript.repeats,
-  });
-  if (error) {
-    savedRound = -1;
-    $('progress-summary').textContent = 'This round could not be saved. Check the Supabase setup and try again.';
+async function savePractice(target = round) {
+  if (!target || target.saving) return;
+  if (!authClient || !currentUser || target.ownerId !== currentUser.id) {
+    if (target === round) $('save-status').textContent = 'Sign in before your next round to save it to your account.';
     return;
   }
-  loadProgress();
+  if (target.seconds < 5) {
+    if (target === round) $('save-status').textContent = 'Practice for at least 5 seconds to save a session.';
+    return;
+  }
+  const userId = currentUser.id;
+  target.saving = true;
+  if (target === round) {
+    $('save-status').textContent = 'Saving your session…';
+    $('retry-save').hidden = true;
+  }
+  try {
+    const {error, skipped} = await persistAttempt(authClient, target, userId);
+    if (error || skipped) throw error || new Error('Session not ready.');
+    if (currentUser?.id !== userId) return;
+    if (target === round) $('save-status').textContent = 'Saved to My sessions. Nice work showing up.';
+    await loadProgress();
+  } catch {
+    if (target === round && currentUser?.id === userId) {
+      $('save-status').textContent = 'Not saved yet. Check your connection and Supabase setup, then retry.';
+      $('retry-save').hidden = false;
+    }
+  } finally {
+    target.saving = false;
+  }
 }
 
 async function initializeAuth() {
@@ -135,35 +209,51 @@ async function initializeAuth() {
       config = response.ok ? await response.json() : config;
     }
     if (!config.url || !config.publishableKey) {
-      setAuthMessage('Accounts are not configured yet. Add the Supabase values described in the README.');
+      setAuthMessage('Accounts are not configured yet. Add the Supabase values described in the README. You can still practice without an account.');
       return;
     }
     const {createClient} = await import('https://esm.sh/@supabase/supabase-js@2');
     authClient = createClient(config.url, config.publishableKey);
-    const {data: {session}} = await authClient.auth.getSession();
+    const {data: {session}, error} = await authClient.auth.getSession();
+    if (error) throw error;
     updateAccount(session?.user);
-    authClient.auth.onAuthStateChange((_event, session) => updateAccount(session?.user));
+    // Defer database requests until Supabase releases its auth-state lock.
+    authClient.auth.onAuthStateChange((_event, session) => setTimeout(() => updateAccount(session?.user), 0));
   } catch {
-    setAuthMessage('Accounts are unavailable right now. You can still practice without signing in.');
+    setAuthMessage('Accounts are unavailable right now. You can still practice without signing in. Try reloading the page.');
   }
 }
 
-async function signIn() {
-  if (!authClient) { setAuthMessage('Accounts are not configured yet.'); return; }
+async function authenticate(create = false) {
+  if (authBusy) return;
+  if (!authClient) { setAuthMessage('Accounts are not connected. Follow the Supabase setup in the README; practice still works without signing in.'); return; }
+  if (!$('auth-fields').reportValidity()) return;
   const email = $('auth-email').value.trim();
   const password = $('auth-password').value;
-  if (!email || !password) { setAuthMessage('Enter an email address and password.'); return; }
-  const {error} = await authClient.auth.signInWithPassword({email, password});
-  setAuthMessage(error ? error.message : 'Signed in. Your progress is now saved.');
-}
-
-async function signUp() {
-  if (!authClient) { setAuthMessage('Accounts are not configured yet.'); return; }
-  const email = $('auth-email').value.trim();
-  const password = $('auth-password').value;
-  if (!email || password.length < 8) { setAuthMessage('Enter an email address and a password with at least 8 characters.'); return; }
-  const {data, error} = await authClient.auth.signUp({email, password, options: {emailRedirectTo: `${location.origin}${location.pathname}`}});
-  setAuthMessage(error ? error.message : data.session ? 'Account created. Your progress is now saved.' : 'Account created. Check your email to confirm the account, then sign in.');
+  if (create && password.length < 8) { setAuthMessage('Use a password with at least 8 characters.'); return; }
+  authBusy = true;
+  $('sign-in').disabled = true;
+  $('sign-up').disabled = true;
+  setAuthMessage(create ? 'Creating your account…' : 'Signing you in…');
+  try {
+    const {data, error} = create
+      ? await authClient.auth.signUp({email, password, options: {emailRedirectTo: `${location.origin}${location.pathname}`}})
+      : await authClient.auth.signInWithPassword({email, password});
+    if (error) throw error;
+    if (data.session?.user) {
+      updateAccount(data.session.user);
+      setAccountMenu(false);
+      $('practice-history').scrollIntoView({behavior: 'smooth', block: 'start'});
+    } else {
+      setAuthMessage('Check your email to confirm your account, then sign in.');
+    }
+  } catch (error) {
+    setAuthMessage(error.message || 'Unable to sign in. Check your connection and try again.');
+  } finally {
+    authBusy = false;
+    $('sign-in').disabled = false;
+    $('sign-up').disabled = false;
+  }
 }
 
 function topicChange(random = true) {
@@ -234,7 +324,7 @@ function renderSpeaking() {
   else detected.append(feedbackItem('No delivery issues found', 'No removable fillers, immediate restarts, or incomplete endings were found in the recognized transcript.'));
 }
 
-async function renderContent() {
+async function renderContent(target) {
   const requestId = ++contentRequest;
   const transcript = $('transcript').value.trim();
   const contentFeedback = $('content-feedback');
@@ -243,10 +333,10 @@ async function renderContent() {
   $('content-status').textContent = 'Checking organization and relevance…';
   ['organization-score', 'relevance-score'].forEach((id) => { $(id).textContent = '—'; });
   try {
-    const response = await fetch('/api/analyze-content', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({topic: $('topic').textContent, prompt: $('prompt').textContent, transcript})});
+    const response = await fetch('/api/analyze-content', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({topic: target.topic, prompt: target.prompt, transcript})});
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Content analysis is unavailable.');
-    if (requestId !== contentRequest) return;
+    if (requestId !== contentRequest || target !== round) return result;
     $('content-score').textContent = result.content_score;
     $('content-status').textContent = scoreLabel(result.content_score);
     $('organization-score').textContent = result.organization_score;
@@ -255,24 +345,43 @@ async function renderContent() {
     contentFeedback.append(feedbackItem('Main idea', result.main_idea || 'No clear main idea was found.'));
     (result.strengths || []).forEach((strength) => contentFeedback.append(feedbackItem('What worked', strength)));
     (result.improvements || []).forEach((item) => contentFeedback.append(feedbackItem(item.excerpt ? `Review “${item.excerpt}”` : 'Make the idea clearer', item.reason, item.suggestion)));
+    return result;
   } catch (error) {
-    if (requestId !== contentRequest) return;
+    if (requestId !== contentRequest || target !== round) return null;
     $('content-score').textContent = '—';
     $('content-status').textContent = error.message;
     contentFeedback.append(feedbackItem('Content score unavailable', `${error.message} Add OPENAI_API_KEY to .env and run npm start. Your speaking score still works locally.`));
+    return null;
   }
 }
 
-function renderFeedback() {
+async function renderFeedback() {
+  const target = round;
+  if (!target || phase !== 'review' || target.evaluating || target.saving) return;
+  target.evaluating = true;
+  $('rescore').disabled = true;
+  $('retry-save').hidden = true;
   renderSpeaking();
-  renderContent().finally(savePractice);
+  const transcript = analyzeTranscript($('transcript').value, seconds);
+  target.seconds = seconds;
+  const speaking = scoreValue('speaking-score');
+  const content = await renderContent(target);
+  target.metrics = {
+      speaking_score: speaking, content_score: content?.content_score ?? null,
+      organization_score: content?.organization_score ?? null, relevance_score: content?.relevance_score ?? null,
+      pace_wpm: transcript.valid ? transcript.pace : null,
+      filler_count: transcript.fillers, repetition_count: transcript.repeats,
+  };
+  await savePractice(target);
+  target.evaluating = false;
+  if (target === round && phase === 'review') $('rescore').disabled = false;
 }
 
 function finishReview() {
   phase = 'review';
   lock(false);
   $('record').disabled = false;
-  $('record').innerHTML = '<span>●</span> Practice again';
+  $('record').innerHTML = '<svg class="icon" aria-hidden="true"><use href="#mic-icon"/></svg> Another take';
   $('status').textContent = 'Round complete';
   $('empty').hidden = true;
   $('review').hidden = false;
@@ -315,6 +424,10 @@ async function start() {
     const mime = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((type) => MediaRecorder.isTypeSupported(type));
     recorder = new MediaRecorder(stream, mime ? {mimeType: mime} : undefined);
     run += 1;
+    contentRequest += 1;
+    round = {id: crypto.randomUUID(), ownerId: currentUser?.id || null, topic: $('topic').textContent, prompt: $('prompt').textContent, createdAt: new Date().toISOString(), seconds: 0};
+    $('save-status').textContent = '';
+    $('retry-save').hidden = true;
     const token = run;
     chunks = []; finalText = ''; interim = ''; seconds = 0; audioSummary = null; recognitionFailed = false; recognitionRetries = 0;
     recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
@@ -329,7 +442,7 @@ async function start() {
     recorder.onerror = () => { recognitionFailed = true; stop(); };
     stream.getAudioTracks()[0].onended = () => { if (phase === 'recording') stop(); };
     recorder.start(200); started = performance.now(); phase = 'recording'; $('review').hidden = true; $('empty').hidden = false; $('audio').pause(); $('record').disabled = false; $('record').textContent = '■  Finish recording'; $('status').textContent = 'Recording your voice'; $('wave').classList.add('active'); $('message').textContent = 'Take your time. The recording stops automatically.'; startRecognition(token);
-    clock = setInterval(() => { seconds = (performance.now() - started) / 1000; $('timer').textContent = time(Math.max(0, Math.ceil(duration - seconds))); $('progress').value = Math.min(duration, seconds); if (seconds >= duration) stop(); }, 100);
+    clock = setInterval(() => { seconds = (performance.now() - started) / 1000; $('timer').textContent = time(Math.max(0, Math.ceil(duration - seconds))); $('recording-progress').value = Math.min(duration, seconds); if (seconds >= duration) stop(); }, 100);
   } catch (error) {
     localStream?.getTracks().forEach((track) => track.stop()); phase = 'idle'; lock(false); $('record').disabled = false;
     $('message').textContent = error.name === 'NotAllowedError' ? 'Microphone access was denied. Allow it in your browser settings, then try again.' : error.name === 'NotFoundError' ? 'No microphone was found. Connect one and try again.' : 'Could not start recording. Check your microphone and try again.';
@@ -346,16 +459,33 @@ function stop() {
 $('record').onclick = () => phase === 'recording' ? stop() : start();
 $('shuffle').onclick = () => topicChange();
 $('rescore').onclick = renderFeedback;
-$('account-toggle').onclick = () => { $('account-menu').hidden = !$('account-menu').hidden; };
-$('sign-in').onclick = signIn;
-$('sign-up').onclick = signUp;
+$('account-toggle').onclick = () => setAccountMenu($('account-menu').hidden);
+$('account-close').onclick = () => { setAccountMenu(false); $('account-toggle').focus(); };
+$('history-sign-in').onclick = () => { window.scrollTo({top: 0, behavior: 'smooth'}); setAccountMenu(true); };
+$('auth-fields').onsubmit = (event) => { event.preventDefault(); authenticate(); };
+$('sign-up').onclick = () => authenticate(true);
+$('refresh-history').onclick = () => loadProgress();
+$('load-more').onclick = () => loadProgress(true);
+$('retry-save').onclick = async () => {
+  $('rescore').disabled = true;
+  await savePractice();
+  $('rescore').disabled = phase !== 'review';
+};
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !$('account-menu').hidden) { setAccountMenu(false); $('account-toggle').focus(); }
+});
+document.addEventListener('click', (event) => { if (!event.target.closest('.account') && !event.target.closest('#history-sign-in')) setAccountMenu(false); });
 $('sign-out').onclick = async () => {
   if (!authClient) return;
-  const {error} = await authClient.auth.signOut();
-  if (error) setAuthMessage(error.message);
+  try {
+    const {error} = await authClient.auth.signOut();
+    if (error) throw error;
+    updateAccount(null);
+    setAccountMenu(false);
+  } catch (error) { setAuthMessage(error.message || 'Could not sign out. Try again.'); }
 };
 document.querySelectorAll('input[name=mode]').forEach((input) => { input.onchange = () => { mode = input.value; document.querySelectorAll('.mode').forEach((element) => element.classList.toggle('selected', element.contains(input))); topicChange(false); if (phase === 'review') { phase = 'idle'; $('review').hidden = true; $('empty').hidden = false; } }; });
-document.querySelectorAll('input[name=duration]').forEach((input) => { input.onchange = () => { duration = Number(input.value); $('timer').textContent = time(duration); $('progress').max = duration; $('progress').value = 0; }; });
+document.querySelectorAll('input[name=duration]').forEach((input) => { input.onchange = () => { duration = Number(input.value); $('timer').textContent = time(duration); $('recording-progress').max = duration; $('recording-progress').value = 0; }; });
 if (!Recognition) $('message').textContent = 'Live transcription is unavailable in this browser. Recording still works; add a transcript afterward.';
 initializeAuth();
 window.addEventListener('pagehide', () => { clearInterval(clock); recognition?.abort(); stream?.getTracks().forEach((track) => track.stop()); if (url) URL.revokeObjectURL(url); });
